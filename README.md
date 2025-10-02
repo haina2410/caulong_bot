@@ -88,6 +88,28 @@ The script expects `FB_EMAIL` and `FB_PASSWORD` in your environment (they can li
 
 The bot waits for `SIGINT`/`SIGTERM` (Ctrl+C) to exit cleanly.
 
+## Docker
+
+Build the production image (includes a compiled `dist/`):
+
+```sh
+docker build -t caulong-bot .
+```
+
+Run the container, mounting your `.env` for configuration:
+
+```sh
+docker run --rm --env-file .env caulong-bot
+```
+
+If you prefer overriding a single variable on the command line:
+
+```sh
+docker run --rm -e PLATFORM=telegram -e TELEGRAM_TOKEN=xxx caulong-bot
+```
+
+The container uses `node dist/index.js` as its entrypoint.
+
 ## Command Flow
 
 1. `create` ensures there is only one planning meetup per chat and automatically enlists the organiser.
