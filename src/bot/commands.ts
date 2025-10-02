@@ -37,7 +37,7 @@ export interface CommandResult {
 
 function requireBody(body: string | null | undefined): string {
   if (!body || !body.trim()) {
-    throw new Error('Command body is empty');
+    throw new Error('Nội dung lệnh đang trống.');
   }
 
   return body.trim();
@@ -49,7 +49,7 @@ async function getActiveEventOrThrow(
 ): Promise<Selectable<EventsTable>> {
   const event = await getPlanningEvent(db, threadId);
   if (!event) {
-    throw new Error('No active badminton meetup. Use "cl create" to start one.');
+    throw new Error('Hiện không có kèo cầu lông nào đang mở. Dùng "cl create" để tạo kèo mới.');
   }
 
   return event;
@@ -61,7 +61,7 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
   const raw = requireBody(ctx.body);
   const withoutPrefix = raw.slice(2).trim();
   if (!withoutPrefix) {
-    throw new Error('Missing command. Try "cl help".');
+    throw new Error('Thiếu tên lệnh. Thử "cl help".');
   }
 
   const lower = withoutPrefix.toLowerCase();
@@ -71,7 +71,7 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     if (existing) {
       const label = formatEventLabel(existing.owner_name, existing.sequence);
       return {
-        response: `An event is already being planned (${label}). Use "cl summary" or finish it with "cl end".`,
+        response: `Đang có kèo ${label} được lên lịch. Dùng "cl summary" để xem tổng quan hoặc "cl end" để chốt kèo.`,
       };
     }
 
@@ -84,7 +84,7 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
 
     const label = formatEventLabel(event.owner_name, event.sequence);
     return {
-      response: `Created badminton meetup ${label}. Add players with "cl add <name>".`,
+      response: `Đã tạo kèo cầu lông ${label}. Thêm người chơi bằng "cl add <tên>".`,
     };
   }
 
@@ -92,55 +92,57 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
     const name = withoutPrefix.slice(4).trim();
     if (!name) {
-      throw new Error('Please provide a player name, e.g. "cl add Hải Nam".');
+      throw new Error('Hãy nhập tên người chơi, ví dụ: "cl add Hải Nam".');
     }
 
     await addAttendee(ctx.db, { eventId: event.id, name });
     const label = formatEventLabel(event.owner_name, event.sequence);
-    return { response: `Added ${name} to ${label}.` };
+    return { response: `Đã thêm ${name} vào kèo ${label}.` };
   }
 
   if (lower.startsWith('date ')) {
     const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
     const dateText = withoutPrefix.slice(5).trim();
     if (!dateText) {
-      throw new Error('Please provide a date in dd/mm/yy format.');
+      throw new Error('Hãy nhập ngày theo định dạng dd/mm/yy.');
     }
 
     const date = parseCommandDate(dateText);
     await setEventDate(ctx.db, { eventId: event.id, date });
     const label = formatEventLabel(event.owner_name, event.sequence);
-    return { response: `Updated date for ${label} to ${dateText}.` };
+    return { response: `Đã cập nhật ngày cho ${label} thành ${dateText}.` };
   }
 
   if (lower.startsWith('venue ')) {
     const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
     const venueUrl = withoutPrefix.slice(6).trim();
     if (!venueUrl) {
-      throw new Error('Please provide a venue URL.');
+      throw new Error('Hãy nhập đường dẫn sân.');
     }
 
     await setEventVenue(ctx.db, { eventId: event.id, venueUrl });
     const label = formatEventLabel(event.owner_name, event.sequence);
-    return { response: `Venue for ${label} set to ${venueUrl}.` };
+    return { response: `Đã cập nhật sân cho ${label}: ${venueUrl}.` };
   }
 
   if (lower === 'end') {
     const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
     await endEvent(ctx.db, event.id);
     const label = formatEventLabel(event.owner_name, event.sequence);
-    return { response: `Marked ${label} as completed. Run "cl summary" to view the balance.` };
+    return {
+      response: `Đã đánh dấu ${label} là đã hoàn tất. Dùng "cl summary" để xem tổng kết chi phí.`,
+    };
   }
 
   if (lower === 'summary') {
     const event = await getLatestEvent(ctx.db, ctx.threadId);
     if (!event) {
-      return { response: 'No badminton meetup found for this chat.' };
+      return { response: 'Chưa có kèo cầu lông nào trong nhóm này.' };
     }
 
     const summary = await getEventSummary(ctx.db, event.id);
     if (!summary) {
-      return { response: 'No details found for the latest meetup.' };
+      return { response: 'Không tìm thấy chi tiết cho kèo gần nhất.' };
     }
 
     const details = summarizeEvent(summary);
@@ -194,7 +196,7 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     const rest = payMatch.groups.rest.trim();
     const [amountToken, ...noteTokens] = rest.split(/\s+/);
     if (!amountToken) {
-      throw new Error('Specify an amount, e.g. "cl Nam pay 200k court".');
+      throw new Error('Hãy nhập số tiền, ví dụ: "cl Nam pay 200k sân".');
     }
 
     const amount = parseAmount(amountToken);
@@ -210,5 +212,5 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     };
   }
 
-  throw new Error('Unknown command. Try "cl create", "cl add <name>", or "cl summary".');
+  throw new Error('Không nhận diện được lệnh. Thử "cl create", "cl add <tên>", hoặc "cl summary".');
 }
