@@ -42,25 +42,48 @@ function isCommand(body: string | null | undefined): body is string {
 }
 
 export function createMessengerAdapter(context: PlatformContext): PlatformAdapter {
+  const logPrefix = '[messenger]';
   let api: Api | undefined;
   let stopListening: (() => void) | undefined;
 
   const processEvent = async (event: MessageEvent) => {
     if (!api) {
+      console.warn(`${logPrefix} Received event while API not initialized`, {
+        threadId: event.threadID,
+        type: event.type,
+      });
       return;
     }
 
     if (event.type !== 'message') {
+      console.debug(`${logPrefix} Ignoring non-message event`, {
+        type: event.type,
+        threadId: event.threadID,
+      });
       return;
     }
 
     if (!event.isGroup) {
+      console.debug(`${logPrefix} Ignoring direct message`, {
+        threadId: event.threadID,
+        senderId: event.senderID,
+      });
       return;
     }
 
     if (!isCommand(event.body)) {
+      console.debug(`${logPrefix} Ignoring non-command message`, {
+        threadId: event.threadID,
+        senderId: event.senderID,
+      });
       return;
     }
+
+    console.log(`${logPrefix} Handling command`, {
+      threadId: event.threadID,
+      senderId: event.senderID,
+      body: event.body,
+    });
 
     const threadName = event.threadName ?? (await getThreadName(api, event.threadID));
 
@@ -74,9 +97,17 @@ export function createMessengerAdapter(context: PlatformContext): PlatformAdapte
         threadName,
       });
 
+      console.log(`${logPrefix} Command handled successfully, sending response`, {
+        threadId: event.threadID,
+      });
       await Promise.resolve(api.sendMessage(result.response, event.threadID));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`${logPrefix} Command handling failed`, {
+        threadId: event.threadID,
+        senderId: event.senderID,
+        error,
+      });
       await Promise.resolve(api.sendMessage(`⚠️ ${message}`, event.threadID));
     }
   };
@@ -98,11 +129,14 @@ export function createMessengerAdapter(context: PlatformContext): PlatformAdapte
   return {
     async start() {
       if (api) {
+        console.warn(`${logPrefix} Adapter already started`);
         return;
       }
 
       const credentials = getCredentials();
+      console.log(`${logPrefix} Logging in with provided credentials`);
       api = await loginAsync(credentials);
+      console.log(`${logPrefix} Login successful`);
 
       api.setOptions({
         selfListen: false,
@@ -110,6 +144,7 @@ export function createMessengerAdapter(context: PlatformContext): PlatformAdapte
         updatePresence: false,
         logLevel: 'silent',
       });
+      console.log(`${logPrefix} Messenger options configured`);
 
       stopListening = api.listenMqtt((error, event) => {
         if (error) {
@@ -117,12 +152,18 @@ export function createMessengerAdapter(context: PlatformContext): PlatformAdapte
           return;
         }
 
+        console.debug(`${logPrefix} Event received from MQTT`, {
+          type: event.type,
+          threadId: event.threadID,
+        });
         void processEvent(event).catch((listenerError) => {
           console.error('Failed to process messenger event', listenerError);
         });
       });
+      console.log(`${logPrefix} Listening for incoming events`);
     },
     async stop() {
+      console.log(`${logPrefix} Stopping adapter`);
       stopListening?.();
       stopListening = undefined;
       api = undefined;
