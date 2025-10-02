@@ -1,0 +1,49 @@
+[
+  {
+    "expirationDate": 1790940184.830819,
+    "domain": ".facebook.com",
+    "httpOnly": false,
+    "secure": true,
+    "path": "/",
+    "sameSite": "no_restriction",
+    "value": "100011211428716",
+    "name": "c_user",
+    "session": false,
+    "hostOnly": false
+  },
+  {
+    "expirationDate": 1759918171,
+    "domain": ".facebook.com",
+    "httpOnly": false,
+    "secure": true,
+    "path": "/",
+    "sameSite": "no_restriction",
+    "value": "1",
+    "name": "dpr",
+    "session": false,
+    "hostOnly": false
+  },
+  {
+    "expirationDate": 1760009504,
+    "domain": ".facebook.com",
+    "httpOnly": false,
+    "secure": true,
+    "path": "/",
+    "sameSite": "lax",
+    "value": "707x1003",
+    "name": "wd",
+    "session": false,
+    "hostOnly": false
+  },
+  {
+    "domain": ".facebook.com",
+    "httpOnly": false,
+    "secure": true,
+    "path": "/",
+    "sameSite": "unspecified",
+    "value": "C%7B%22t3%22%3A%5B%7B%22o%22%3A0%2C%22i%22%3A%22u.100015456586870%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22g.30646516134996305%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7321612024582449%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.5683722175085406%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7429395117136042%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7427872257307248%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7808159245897009%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.9626315804092666%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22g.24152697221056381%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7505660079472972%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22g.1497841940331139%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.30377857215193225%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7521649347892725%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22u.100036096486802%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7859093584153506%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7728917640557307%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22g.24601686579417635%22%7D%2C%7B%22o%22%3A0%2C%22i%22%3A%22sc.7884960491632648%22%7D%5D%2C%22utc3%22%3A1759404705973%2C%22v%22%3A1%7D",
+    "name": "presence",
+    "session": true,
+    "hostOnly": false
+  }
+]

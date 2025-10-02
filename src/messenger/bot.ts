@@ -1,11 +1,7 @@
 import login from 'facebook-chat-api';
 import type { Api, MessageEvent } from 'facebook-chat-api';
-import type { Kysely } from 'kysely';
 
-import type { AppConfig } from '../config';
-import type { Database } from '../services/database';
-import { ensureGroupChat } from '../services/eventService';
-import { handleCommand } from './commands';
+import type { PlatformAdapter, PlatformContext } from '../platforms/types';
 
 async function loginAsync(credentials: {
   email?: string;
@@ -45,72 +41,91 @@ function isCommand(body: string | null | undefined): body is string {
   return body.trimStart().toLowerCase().startsWith('cl ');
 }
 
-async function processEvent(api: Api, db: Kysely<Database>, event: MessageEvent): Promise<void> {
-  if (event.type !== 'message') {
-    return;
-  }
+export function createMessengerAdapter(context: PlatformContext): PlatformAdapter {
+  let api: Api | undefined;
+  let stopListening: (() => void) | undefined;
 
-  if (!event.isGroup) {
-    return;
-  }
+  const processEvent = async (event: MessageEvent) => {
+    if (!api) {
+      return;
+    }
 
-  if (!isCommand(event.body)) {
-    return;
-  }
+    if (event.type !== 'message') {
+      return;
+    }
 
-  const threadName = event.threadName ?? (await getThreadName(api, event.threadID));
+    if (!event.isGroup) {
+      return;
+    }
 
-  await ensureGroupChat(db, { id: event.threadID, name: threadName ?? null });
+    if (!isCommand(event.body)) {
+      return;
+    }
 
-  try {
-    const result = await handleCommand({
-      db,
-      body: event.body,
-      senderId: event.senderID,
-      senderName: event.senderName ?? 'Unknown',
-      threadId: event.threadID,
-      threadName,
-    });
+    const threadName = event.threadName ?? (await getThreadName(api, event.threadID));
 
-    await Promise.resolve(api.sendMessage(result.response, event.threadID));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    await Promise.resolve(api.sendMessage(`⚠️ ${message}`, event.threadID));
-  }
-}
+    try {
+      const result = await context.handleCommand({
+        db: context.db,
+        body: event.body,
+        senderId: event.senderID,
+        senderName: event.senderName ?? 'Unknown',
+        threadId: event.threadID,
+        threadName,
+      });
 
-export async function createBot(db: Kysely<Database>, config: AppConfig): Promise<void> {
-  const credentials = config.appState
-    ? { appState: config.appState }
-    : { email: config.fbEmail, password: config.fbPassword };
+      await Promise.resolve(api.sendMessage(result.response, event.threadID));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await Promise.resolve(api.sendMessage(`⚠️ ${message}`, event.threadID));
+    }
+  };
 
-  const api = await loginAsync(credentials);
+  const getCredentials = () => {
+    if (context.config.appState) {
+      return { appState: context.config.appState } as const;
+    }
 
-  api.setOptions({
-    selfListen: false,
-    listenEvents: true,
-    updatePresence: false,
-    logLevel: 'silent',
-  });
+    if (context.config.fbEmail && context.config.fbPassword) {
+      return { email: context.config.fbEmail, password: context.config.fbPassword } as const;
+    }
 
-  await new Promise<void>((resolve) => {
-    const stopListening = api.listenMqtt((error, event) => {
-      if (error) {
-        console.error('Messenger listener error', error);
+    throw new Error(
+      'Messenger credentials missing. Configure FB_APPSTATE_PATH or FB_EMAIL/FB_PASSWORD.',
+    );
+  };
+
+  return {
+    async start() {
+      if (api) {
         return;
       }
 
-      void processEvent(api, db, event).catch((listenerError) => {
-        console.error('Failed to process messenger event', listenerError);
+      const credentials = getCredentials();
+      api = await loginAsync(credentials);
+
+      api.setOptions({
+        selfListen: false,
+        listenEvents: true,
+        updatePresence: false,
+        logLevel: 'silent',
       });
-    });
 
-    const cleanup = () => {
-      stopListening();
-      resolve();
-    };
+      stopListening = api.listenMqtt((error, event) => {
+        if (error) {
+          console.error('Messenger listener error', error);
+          return;
+        }
 
-    process.once('SIGINT', cleanup);
-    process.once('SIGTERM', cleanup);
-  });
+        void processEvent(event).catch((listenerError) => {
+          console.error('Failed to process messenger event', listenerError);
+        });
+      });
+    },
+    async stop() {
+      stopListening?.();
+      stopListening = undefined;
+      api = undefined;
+    },
+  };
 }

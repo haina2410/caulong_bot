@@ -40,6 +40,7 @@ declare module 'facebook-chat-api' {
       threadID: string,
       callback: (error: Error | null, info: ThreadInfo) => void,
     ): void;
+    getAppState(): unknown;
   }
 
   export interface ThreadInfo {

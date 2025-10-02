@@ -1,6 +1,6 @@
-# Cầu Lông Messenger Bot
+# Cầu Lông Bot
 
-A Facebook Messenger chatbot that helps badminton groups organise matches, track attendees, and split costs fairly. It uses the unofficial [`facebook-chat-api`](https://github.com/Schmavery/facebook-chat-api), the Kysely query builder, and PostgreSQL.
+A modular badminton meetup assistant that ships with Facebook Messenger and Telegram adapters backed by a shared command core. The architecture allows plugging in additional transports (such as Discord) as they are implemented. It uses the unofficial [`facebook-chat-api`](https://github.com/Schmavery/facebook-chat-api), the Kysely query builder, and PostgreSQL.
 
 ## Features
 
@@ -33,12 +33,38 @@ A Facebook Messenger chatbot that helps badminton groups organise matches, track
 
    | Variable | Description |
    | --- | --- |
-   | `DATABASE_URL` | Postgres connection string (e.g. `postgres://user:pass@localhost:5432/caulong_bot`) |
-   | `PGSSL` | Set to `true` for managed Postgres that requires TLS |
-   | `FB_APPSTATE_PATH` | Path to a saved Facebook appState JSON file (preferred) |
-   | `FB_EMAIL` / `FB_PASSWORD` | Legacy login fallback when appState is not available |
+  | `DATABASE_URL` | Postgres connection string (e.g. `postgres://user:pass@localhost:5432/caulong_bot`) |
+  | `PGSSL` | Set to `true` for managed Postgres that requires TLS |
+  | `PLATFORM` | Target transport: `messenger` (default), `discord`, or `telegram` |
+  | `FB_APPSTATE_PATH` | Path to a saved Facebook appState JSON file (preferred when `PLATFORM=messenger`) |
+  | `FB_EMAIL` / `FB_PASSWORD` | Legacy login fallback when appState is not available (Messenger only) |
+  | `DISCORD_TOKEN` | Bot token for the future Discord adapter (leave blank unless experimenting) |
+  | `TELEGRAM_TOKEN` | Bot token from BotFather (required when `PLATFORM=telegram`) |
 
 3. Start a local Postgres instance and ensure the database referenced in `DATABASE_URL` exists.
+
+### Platform status
+
+- **Messenger** – fully wired using `facebook-chat-api` and the shared command handler.
+- **Telegram** – running on long-polling via `node-telegram-bot-api`; reacts to `cl ` commands posted in group chats where the bot is present.
+- **Discord** – scaffold only for now; command routing is not implemented yet.
+
+### Telegram setup
+
+1. Talk to [@BotFather](https://t.me/BotFather) and create a bot. Copy the provided token into `TELEGRAM_TOKEN`.
+2. Set `PLATFORM=telegram` in your environment. Restart the bot after changing the platform.
+3. Add the bot to your Telegram group and disable privacy mode via BotFather if you want it to see plain messages (`/setprivacy -> Disable`).
+4. Use the usual `cl ...` commands inside the group. The bot replies to the original message so the context stays clear.
+
+### Generate appState (one-time setup)
+
+Use the dedicated login script to exchange your email/password for an `appState` file that the bot can reuse later without storing your password:
+
+```sh
+corepack pnpm run login
+```
+
+The script expects `FB_EMAIL` and `FB_PASSWORD` in your environment (they can live in `.env`). If `FB_APPSTATE_PATH` is set, the generated file is written there; otherwise it defaults to `.fbappstate.json` in the project root. When two-factor authentication is enabled, the CLI will prompt you for the verification code and continue automatically.
 
 ## Development
 
