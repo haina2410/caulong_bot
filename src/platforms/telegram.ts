@@ -6,12 +6,37 @@ function isGroupChat(type: TelegramBot.Chat['type']): boolean {
   return type === 'group' || type === 'supergroup';
 }
 
-function isCommand(text: string | undefined | null): text is string {
+function normalizeCommand(text: string | undefined | null): string | null {
   if (!text) {
-    return false;
+    return null;
   }
 
-  return text.trimStart().toLowerCase().startsWith('cl ');
+  const trimmed = text.trimStart();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('/')) {
+    const withoutSlash = trimmed.slice(1);
+    const match = withoutSlash.match(/^(cl)(?:@[\w_]+)?(?:(\s.*)|$)/i);
+    if (!match) {
+      return null;
+    }
+
+    const remainder = match[2] ?? '';
+    return `cl${remainder}`;
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower === 'cl') {
+    return 'cl';
+  }
+
+  if (lower.startsWith('cl ')) {
+    return `cl${trimmed.slice(2)}`;
+  }
+
+  return null;
 }
 
 function formatSenderName(message: TelegramBot.Message): string {
@@ -48,10 +73,12 @@ export function createTelegramAdapter(context: PlatformContext): PlatformAdapter
       return;
     }
 
-    if (!isCommand(message.text)) {
-      console.debug(`${logPrefix} Ignoring non-command message`, {
+    const normalizedCommand = normalizeCommand(message.text);
+    if (!normalizedCommand) {
+      console.debug(`${logPrefix} Ignoring message that is not a supported command`, {
         chatId: message.chat.id,
         senderId: message.from?.id,
+        textSample: message.text.slice(0, 50),
       });
       return;
     }
@@ -75,7 +102,8 @@ export function createTelegramAdapter(context: PlatformContext): PlatformAdapter
     console.log(`${logPrefix} Handling command`, {
       chatId: message.chat.id,
       senderId,
-      body: message.text,
+      body: normalizedCommand,
+      original: message.text,
     });
 
     const threadId = String(message.chat.id);
@@ -84,7 +112,7 @@ export function createTelegramAdapter(context: PlatformContext): PlatformAdapter
     try {
       const result = await context.handleCommand({
         db: context.db,
-        body: message.text,
+        body: normalizedCommand,
         senderId: String(senderId),
         senderName: formatSenderName(message),
         threadId,
