@@ -1,0 +1,48 @@
+{
+  "name": "caulong-bot",
+  "version": "0.1.0",
+  "description": "Facebook Messenger badminton meetup assistant bot",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "start:dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+  },
+  "keywords": [
+    "facebook",
+    "messenger",
+    "chatbot",
+    "badminton",
+    "kysely"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "facebook-chat-api": "^1.6.0",
+    "kysely": "^0.27.3",
+    "luxon": "^3.5.0",
+    "pg": "^8.11.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.5",
+    "@types/luxon": "^3.3.6",
+    "@types/pg": "^8.11.10",
+    "@typescript-eslint/eslint-plugin": "^7.15.0",
+    "@typescript-eslint/parser": "^7.15.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "5.5.4"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}
