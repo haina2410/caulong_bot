@@ -31,15 +31,15 @@ A modular badminton meetup assistant that ships with Facebook Messenger and Tele
    cp .env.example .env
    ```
 
-   | Variable | Description |
-   | --- | --- |
-  | `DATABASE_URL` | Postgres connection string (e.g. `postgres://user:pass@localhost:5432/caulong_bot`) |
-  | `PGSSL` | Set to `true` for managed Postgres that requires TLS |
-  | `PLATFORM` | Target transport: `messenger` (default), `discord`, or `telegram` |
-  | `FB_APPSTATE_PATH` | Path to a saved Facebook appState JSON file (preferred when `PLATFORM=messenger`) |
-  | `FB_EMAIL` / `FB_PASSWORD` | Legacy login fallback when appState is not available (Messenger only) |
-  | `DISCORD_TOKEN` | Bot token for the future Discord adapter (leave blank unless experimenting) |
-  | `TELEGRAM_TOKEN` | Bot token from BotFather (required when `PLATFORM=telegram`) |
+   | Variable                   | Description                                                                         |
+   | -------------------------- | ----------------------------------------------------------------------------------- |
+   | `DATABASE_URL`             | Postgres connection string (e.g. `postgres://user:pass@localhost:5432/caulong_bot`) |
+   | `PGSSL`                    | Set to `true` for managed Postgres that requires TLS                                |
+   | `PLATFORM`                 | Target transport: `messenger` (default), `discord`, or `telegram`                   |
+   | `FB_APPSTATE_PATH`         | Path to a saved Facebook appState JSON file (preferred when `PLATFORM=messenger`)   |
+   | `FB_EMAIL` / `FB_PASSWORD` | Legacy login fallback when appState is not available (Messenger only)               |
+   | `DISCORD_TOKEN`            | Bot token for the future Discord adapter (leave blank unless experimenting)         |
+   | `TELEGRAM_TOKEN`           | Bot token from BotFather (required when `PLATFORM=telegram`)                        |
 
 3. Start a local Postgres instance and ensure the database referenced in `DATABASE_URL` exists.
 
