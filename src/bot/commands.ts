@@ -6,13 +6,14 @@ import {
   addPayment,
   createEvent,
   endEvent,
+  ensureGroupChat,
   getLatestEvent,
   getPlanningEvent,
   getEventSummary,
+  removeAttendee,
   setEventDate,
   setEventVenue,
   summarizeEvent,
-  ensureGroupChat,
 } from '../services/eventService';
 import {
   formatCurrency,
@@ -68,7 +69,7 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
   const raw = requireBody(ctx.body);
   const withoutPrefix = raw.slice(2).trim();
   if (!withoutPrefix) {
-    throw new Error('Thiếu tên lệnh. Thử "cl help".');
+    throw new Error('Thiếu tên lệnh. Thử "cl giúp".');
   }
 
   const commandMatch = withoutPrefix.match(/^(\S+)(?:\s+)?([\s\S]*)$/);
@@ -77,12 +78,29 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
   const normalizedCommand = normalizeCommandToken(commandWord);
   const normalizedFull = normalizeCommandToken(withoutPrefix);
 
+  if (normalizedCommand === 'help' || normalizedCommand === 'giup') {
+    const lines = [
+      'Hướng dẫn lệnh cầu lông:',
+      '- cl tạo: tạo kèo mới.',
+      '- cl thêm <tên1, tên2>: thêm một hoặc nhiều người chơi.',
+      '- cl <tên> trả <số tiền> [ghi chú]: ghi nhận chi phí.',
+      '- cl ngày <dd/mm/yy>: đặt ngày chơi.',
+      '- cl sân <tên, link>: cập nhật tên, link sân.',
+      '- cl kết: chốt kèo hiện tại.',
+      '- cl đá <tên>: xoá người ra khỏi kèo.',
+      '- cl tiền: xem tổng kết kèo gần nhất.',
+      '- cl giúp / cl help: hiển thị danh sách lệnh.',
+    ];
+
+    return { response: lines.join('\n') };
+  }
+
   if (normalizedCommand === 'tao' || normalizedCommand === 'create') {
     const existing = await getPlanningEvent(ctx.db, ctx.threadId);
     if (existing) {
       const label = formatEventLabel(existing.owner_name, existing.sequence);
       return {
-        response: `Đang có kèo ${label} được lên lịch. Dùng "cl summary" để xem tổng quan hoặc "cl kết" để chốt kèo.`,
+        response: `Đang có kèo ${label} được lên lịch. Dùng "cl tiền" để xem tổng quan hoặc "cl kết" để chốt kèo.`,
       };
     }
 
@@ -101,17 +119,84 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
 
   if (normalizedCommand === 'them' || normalizedCommand === 'add') {
     const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
-    const name = commandArgs.trim();
-    if (!name) {
-      throw new Error('Hãy nhập tên người chơi, ví dụ: "cl thêm Hải Nam".');
+    const rawNames = commandArgs
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    if (!rawNames.length) {
+      throw new Error('Hãy nhập tên người chơi, ví dụ: "cl thêm Hải Nam" hoặc "cl thêm Nam, Huy".');
     }
 
-    await addAttendee(ctx.db, { eventId: event.id, name });
+    for (const name of rawNames) {
+      await addAttendee(ctx.db, { eventId: event.id, name });
+    }
+
     const label = formatEventLabel(event.owner_name, event.sequence);
-    return { response: `Đã thêm ${name} vào kèo ${label}.` };
+    const uniqueNames = Array.from(new Set(rawNames));
+    const list = uniqueNames.join(', ');
+    return {
+      response: `Đã thêm ${list} vào kèo ${label}.`,
+    };
   }
 
-  if (normalizedCommand === 'date' || normalizedCommand === 'ngay') {
+  if (normalizedCommand === 'da' || normalizedCommand === 'remove') {
+    const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
+    const rawNames = commandArgs
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    if (!rawNames.length) {
+      throw new Error('Hãy nhập tên cần đá, ví dụ: "cl đá Nam".');
+    }
+
+    const ownerNormalized = normalizeName(event.owner_name);
+    const removed: string[] = [];
+    const missing: string[] = [];
+    const protectedNames: string[] = [];
+
+    for (const name of rawNames) {
+      if (normalizeName(name) === ownerNormalized) {
+        protectedNames.push(name);
+        continue;
+      }
+
+      const deleted = await removeAttendee(ctx.db, { eventId: event.id, name });
+      if (deleted) {
+        removed.push(name);
+      } else {
+        missing.push(name);
+      }
+    }
+
+    if (!removed.length) {
+      if (protectedNames.length) {
+        throw new Error('Không thể đá chủ kèo khỏi danh sách.');
+      }
+
+      const target = missing.length === 1 ? missing[0] : 'các tên đã nhập';
+      throw new Error(`Không tìm thấy ${target} trong kèo hiện tại.`);
+    }
+
+    const label = formatEventLabel(event.owner_name, event.sequence);
+    const removedList = Array.from(new Set(removed)).join(', ');
+    const fragments = [`Đã đá ${removedList} khỏi kèo ${label}.`];
+
+    if (missing.length) {
+      const missingList = Array.from(new Set(missing)).join(', ');
+      fragments.push(`Không thấy ${missingList} trong danh sách.`);
+    }
+
+    if (protectedNames.length) {
+      const protectedList = Array.from(new Set(protectedNames)).join(', ');
+      fragments.push(`Không thể đá chủ kèo ${protectedList}.`);
+    }
+
+    return { response: fragments.join(' ') };
+  }
+
+  if (normalizedCommand === 'ngay' || normalizedCommand === 'date') {
     const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
     const dateText = commandArgs.trim();
     if (!dateText) {
@@ -141,11 +226,12 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     await endEvent(ctx.db, event.id);
     const label = formatEventLabel(event.owner_name, event.sequence);
     return {
-      response: `Đã đánh dấu ${label} là đã hoàn tất. Dùng "cl summary" để xem tổng kết chi phí.`,
+      response: `Đã đánh dấu ${label} là đã hoàn tất. Dùng "cl tiền" để xem tổng kết chi phí.`,
     };
   }
 
-  if ((normalizedCommand === 'summary' || normalizedFull === 'summary') && !commandArgs.trim()) {
+  const summaryTokens = new Set(['summary', 'tien']);
+  if (summaryTokens.has(normalizedCommand) && !commandArgs.trim()) {
     const event = await getLatestEvent(ctx.db, ctx.threadId);
     if (!event) {
       return { response: 'Chưa có kèo cầu lông nào trong nhóm này.' };
@@ -222,5 +308,7 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     };
   }
 
-  throw new Error('Không nhận diện được lệnh. Thử "cl tạo", "cl thêm <tên>", hoặc "cl summary".');
+  throw new Error(
+    'Không nhận diện được lệnh. Thử "cl tạo", "cl thêm <tên>", "cl tiền" hoặc "cl giúp".',
+  );
 }

@@ -11,7 +11,9 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
-    "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+    "format:fix": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "db:reset": "ts-node-dev --transpile-only src/scripts/resetDatabase.ts",
+    "db:seed": "ts-node-dev --transpile-only src/scripts/seedDatabase.ts"
   },
   "keywords": [
     "facebook",

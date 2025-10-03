@@ -88,6 +88,18 @@ The script expects `FB_EMAIL` and `FB_PASSWORD` in your environment (they can li
 
 The bot waits for `SIGINT`/`SIGTERM` (Ctrl+C) to exit cleanly.
 
+- Reset the database (truncates all tables):
+
+  ```sh
+  corepack pnpm db:reset
+  ```
+
+- Seed demo data:
+
+  ```sh
+  corepack pnpm db:seed
+  ```
+
 ## Docker
 
 Build the production image (includes a compiled `dist/`):

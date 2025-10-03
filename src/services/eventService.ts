@@ -21,6 +21,11 @@ export interface AddAttendeeInput {
   name: string;
 }
 
+export interface RemoveAttendeeInput {
+  eventId: string;
+  name: string;
+}
+
 export interface AddPaymentInput {
   eventId: string;
   payerName: string;
@@ -149,6 +154,31 @@ export async function addAttendee(
       }),
     )
     .executeTakeFirst();
+}
+
+export async function removeAttendee(
+  db: Kysely<Database> | Transaction<Database>,
+  input: RemoveAttendeeInput,
+): Promise<boolean> {
+  const normalized_name = normalizeName(input.name);
+
+  const deleteResult = await db
+    .deleteFrom('event_attendees')
+    .where('event_id', '=', input.eventId)
+    .where('normalized_name', '=', normalized_name)
+    .executeTakeFirst();
+
+  const deleted = Number(deleteResult?.numDeletedRows ?? 0) > 0;
+
+  if (deleted) {
+    await db
+      .deleteFrom('event_payments')
+      .where('event_id', '=', input.eventId)
+      .where('normalized_name', '=', normalized_name)
+      .executeTakeFirst();
+  }
+
+  return deleted;
 }
 
 export async function setEventDate(db: Kysely<Database>, input: UpdateDateInput): Promise<void> {
