@@ -1,55 +1,69 @@
-declare module 'facebook-chat-api' {
+declare module 'ws3-fca' {
   export interface LoginCredentials {
     email?: string;
     password?: string;
     appState?: unknown;
   }
 
-  export interface ApiOptions {
-    selfListen?: boolean;
-    listenEvents?: boolean;
-    forceLogin?: boolean;
+  export interface LoginOptions {
+    online?: boolean;
     updatePresence?: boolean;
-    autoMarkDelivery?: boolean;
-    autoMarkRead?: boolean;
+    selfListen?: boolean;
+    randomUserAgent?: boolean;
+    listenEvents?: boolean;
     logLevel?: 'silent' | 'info' | 'debug';
   }
 
   export interface SendMessageOptions {
     body?: string;
+    attachment?: unknown;
+    mentions?: Array<{ tag: string; id: string }>;
+    url?: string;
+    sticker?: string;
   }
 
   export interface MessageEvent {
-    type: 'message' | string;
+    type: 'message' | 'event' | string;
     threadID: string;
     messageID: string;
     senderID: string;
     body: string | null;
     isGroup: boolean;
     participantIDs?: string[];
-    senderName?: string;
-    threadName?: string;
+    mentions?: Record<string, string>;
+    attachments?: unknown[];
   }
 
   export interface Api {
-    setOptions(options: ApiOptions): void;
+    getCurrentUserID(): string;
     listenMqtt(callback: (error: Error | null, event: MessageEvent) => void): () => void;
-    sendMessage(message: string | SendMessageOptions, threadID: string): Promise<void> | void;
-    markAsRead(threadID: string): Promise<void> | void;
+    sendMessageMqtt(
+      message: string | SendMessageOptions,
+      threadID: string,
+      messageID?: string,
+    ): Promise<{ threadID: string; messageID: string }>;
     getThreadInfo(
       threadID: string,
       callback: (error: Error | null, info: ThreadInfo) => void,
     ): void;
-    getAppState(): unknown;
+    markAsRead(threadID: string): void;
+    setMessageReaction(
+      reaction: string,
+      messageID: string,
+      callback?: (error: Error | null) => void,
+    ): void;
   }
 
   export interface ThreadInfo {
     threadID: string;
     threadName?: string;
+    participantIDs?: string[];
+    nicknames?: Record<string, string>;
   }
 
-  export default function login(
+  export function login(
     credentials: LoginCredentials,
-    callback: (error: Error | null, api: Api) => void,
+    options: LoginOptions | ((error: Error | null, api: Api) => void),
+    callback?: (error: Error | null, api: Api) => void,
   ): void;
 }

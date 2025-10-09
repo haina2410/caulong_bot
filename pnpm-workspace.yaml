@@ -1,2 +1,5 @@
 onlyBuiltDependencies:
+  - better-sqlite3
+  - deasync
   - es5-ext
+  - sqlite3
