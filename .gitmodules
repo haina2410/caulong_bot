@@ -1,0 +1,3 @@
+[submodule "packages/facebook-chat-api"]
+	path = packages/facebook-chat-api
+	url = https://github.com/haina2410/facebook-chat-api.git
