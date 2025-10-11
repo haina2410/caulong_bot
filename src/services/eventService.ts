@@ -1,7 +1,7 @@
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import type { Database, EventAttendeesTable, EventPaymentsTable, EventsTable } from './database';
-import { ceilToThousand, formatEventLabel, normalizeName, slugifyName } from '../utils/text';
+import { formatEventLabel, normalizeName, slugifyName } from '../utils/text';
 
 export interface EventSummary {
   event: Selectable<EventsTable>;
@@ -24,6 +24,12 @@ export interface AddAttendeeInput {
 export interface RemoveAttendeeInput {
   eventId: string;
   name: string;
+}
+
+export interface UpdateAttendeeGoInput {
+  eventId: string;
+  name: string;
+  go: boolean;
 }
 
 export interface AddPaymentInput {
@@ -147,10 +153,12 @@ export async function addAttendee(
       event_id: input.eventId,
       name: input.name,
       normalized_name,
+      go: true,
     })
     .onConflict((oc) =>
       oc.columns(['event_id', 'normalized_name']).doUpdateSet({
         name: input.name,
+        go: true,
       }),
     )
     .executeTakeFirst();
@@ -179,6 +187,22 @@ export async function removeAttendee(
   }
 
   return deleted;
+}
+
+export async function setAttendeeGo(
+  db: Kysely<Database> | Transaction<Database>,
+  input: UpdateAttendeeGoInput,
+): Promise<boolean> {
+  const normalized_name = normalizeName(input.name);
+
+  const updateResult = await db
+    .updateTable('event_attendees')
+    .set({ go: input.go })
+    .where('event_id', '=', input.eventId)
+    .where('normalized_name', '=', normalized_name)
+    .executeTakeFirst();
+
+  return Number(updateResult?.numUpdatedRows ?? 0) > 0;
 }
 
 export async function setEventDate(db: Kysely<Database>, input: UpdateDateInput): Promise<void> {
@@ -254,58 +278,104 @@ export async function getEventSummary(
 }
 
 export function summarizeEvent(summary: EventSummary) {
-  const participants = new Map<string, { name: string; normalized: string; prepaid: number }>();
+  const participantMap = new Map<
+    string,
+    { name: string; normalized: string; go: boolean; prepaid: number; isAttendee: boolean }
+  >();
 
   for (const attendee of summary.attendees) {
-    const normalized = attendee.normalized_name;
-    participants.set(normalized, {
+    participantMap.set(attendee.normalized_name, {
       name: attendee.name,
-      normalized,
+      normalized: attendee.normalized_name,
+      go: Boolean(attendee.go),
       prepaid: 0,
+      isAttendee: true,
     });
   }
 
+  let courtCost = 0;
+  let otherCost = 0;
+
   for (const payment of summary.payments) {
-    const entry = participants.get(payment.normalized_name) ?? {
+    const normalized = payment.normalized_name;
+
+    if (normalized === 'san' || normalized === 'court') {
+      courtCost += payment.amount;
+      continue;
+    }
+
+    otherCost += payment.amount;
+
+    const entry = participantMap.get(normalized) ?? {
       name: payment.payer_name,
-      normalized: payment.normalized_name,
+      normalized,
+      go: true,
       prepaid: 0,
+      isAttendee: false,
     };
 
     entry.prepaid += payment.amount;
-    participants.set(payment.normalized_name, entry);
+    participantMap.set(normalized, entry);
   }
 
-  const participantArray = Array.from(participants.values());
-  const count = participantArray.length || 1;
-  const total = participantArray.reduce((acc, participant) => acc + participant.prepaid, 0);
-  const share = ceilToThousand(total / count);
+  const participantArray = Array.from(participantMap.values());
+  const attendeeCount = summary.attendees.length;
+  const goerCount = summary.attendees.filter((attendee) => attendee.go).length;
+  const nonGoerCount = attendeeCount - goerCount;
+
+  const total = courtCost + otherCost;
+  const courtSharePerPerson = attendeeCount > 0 ? courtCost / attendeeCount : 0;
+  const totalNonGoerCourt = courtSharePerPerson * nonGoerCount;
+  const remainingCourt = Math.max(0, courtCost - totalNonGoerCourt);
+  const goerShare = goerCount > 0 ? (remainingCourt + otherCost) / goerCount : 0;
+  const nonGoerShare = courtSharePerPerson;
 
   const ownerNormalized = normalizeName(summary.event.owner_name);
-  const owner = participantArray.find((participant) => participant.normalized === ownerNormalized);
 
-  const balances = participantArray.map((participant) => ({
-    name: participant.name,
-    prepaid: participant.prepaid,
-    balance: participant.prepaid - share,
-  }));
+  const balances = participantArray.map((participant) => {
+    const owes = participant.isAttendee ? (participant.go ? goerShare : nonGoerShare) : 0;
+
+    return {
+      name: participant.name,
+      prepaid: participant.prepaid,
+      balance: participant.prepaid - owes,
+      go: participant.go,
+      isAttendee: participant.isAttendee,
+    };
+  });
 
   balances.sort((a, b) => {
-    if (a.name === summary.event.owner_name) {
+    const aIsOwner = normalizeName(a.name) === ownerNormalized;
+    const bIsOwner = normalizeName(b.name) === ownerNormalized;
+
+    if (aIsOwner && !bIsOwner) {
       return -1;
     }
 
-    if (b.name === summary.event.owner_name) {
+    if (!aIsOwner && bIsOwner) {
       return 1;
+    }
+
+    if (a.isAttendee !== b.isAttendee) {
+      return a.isAttendee ? -1 : 1;
     }
 
     return a.name.localeCompare(b.name, 'vi');
   });
 
+  const owner = balances.find((balance) => normalizeName(balance.name) === ownerNormalized);
+
   return {
     eventLabel: formatEventLabel(summary.event.owner_name, summary.event.sequence),
     total,
-    share,
+    courtCost,
+    otherCost,
+    share: goerShare,
+    goerShare,
+    nonGoerShare,
+    attendeeCount,
+    goerCount,
+    nonGoerCount,
     balances,
     owner,
   };

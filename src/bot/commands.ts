@@ -13,6 +13,7 @@ import {
   removeAttendee,
   setEventDate,
   setEventVenue,
+  setAttendeeGo,
   summarizeEvent,
 } from '../services/eventService';
 import {
@@ -76,7 +77,6 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
   const commandWord = commandMatch?.[1] ?? '';
   const commandArgs = commandMatch?.[2] ?? '';
   const normalizedCommand = normalizeCommandToken(commandWord);
-  const normalizedFull = normalizeCommandToken(withoutPrefix);
 
   if (normalizedCommand === 'help' || normalizedCommand === 'giup') {
     const lines = [
@@ -137,6 +137,26 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     const list = uniqueNames.join(', ');
     return {
       response: `Đã thêm ${list} vào kèo ${label}.`,
+    };
+  }
+
+  const notGoingMatch = withoutPrefix.match(/^(?<name>.+?)\s+(khong di|không đi)$/iu);
+  if (notGoingMatch?.groups) {
+    const name = notGoingMatch.groups.name.trim();
+    if (!name) {
+      throw new Error('Hãy nhập tên người chơi, ví dụ: "cl Nam không đi".');
+    }
+
+    const event = await getActiveEventOrThrow(ctx.db, ctx.threadId);
+    const updated = await setAttendeeGo(ctx.db, { eventId: event.id, name, go: false });
+
+    if (!updated) {
+      throw new Error(`Không thấy ${name} trong kèo hiện tại.`);
+    }
+
+    const label = formatEventLabel(event.owner_name, event.sequence);
+    return {
+      response: `Đã đánh dấu ${name} không đi kèo ${label}.`,
     };
   }
 
@@ -255,7 +275,14 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     }
 
     lines.push(`Tổng chi phí: ${formatCurrency(details.total)}`);
-    lines.push(`Mỗi người: ${formatCurrency(details.share)}`);
+    lines.push(
+      `Tiền sân: ${formatCurrency(details.courtCost)} | Chi khác: ${formatCurrency(details.otherCost)}`,
+    );
+    lines.push(`Người đi/đăng ký: ${details.goerCount}/${details.attendeeCount}`);
+    lines.push(`Mỗi người đi: ${formatCurrency(Math.round(details.goerShare))}`);
+    if (details.nonGoerCount > 0) {
+      lines.push(`Mỗi người không đi: ${formatCurrency(Math.round(details.nonGoerShare))}`);
+    }
 
     if (summary.payments.length) {
       lines.push('Chi tiết chi phí:');
@@ -266,21 +293,22 @@ export async function handleCommand(ctx: CommandContext): Promise<CommandResult>
     }
 
     if (summary.attendees.length) {
-      lines.push(
-        `Thành viên (${summary.attendees.length}): ${summary.attendees
-          .map((attendee) => attendee.name)
-          .join(', ')}`,
-      );
+      const attendeeList = summary.attendees
+        .map((attendee) => (attendee.go ? attendee.name : `${attendee.name} (không đi)`))
+        .join(', ');
+      lines.push(`Thành viên (${summary.attendees.length}): ${attendeeList}`);
     }
 
     lines.push('Tổng kết:');
     details.balances.forEach((balance, index) => {
       const rank = index + 1;
-      const formatted = formatCurrency(Math.abs(balance.balance));
+      const amount = Math.round(Math.abs(balance.balance));
+      const formatted = formatCurrency(amount);
       const sign = balance.balance >= 0 ? '' : '-';
       const ownerTag =
         normalizeName(balance.name) === normalizeName(event.owner_name) ? ' (chủ kèo)' : '';
-      lines.push(`${rank}. ${balance.name}${ownerTag} ${sign}${formatted}`);
+      const statusTag = balance.isAttendee ? (balance.go ? '' : ' (không đi)') : ' (ngoài DS)';
+      lines.push(`${rank}. ${balance.name}${ownerTag}${statusTag} ${sign}${formatted}`);
     });
 
     return { response: lines.join('\n') };

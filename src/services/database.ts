@@ -35,6 +35,7 @@ export interface EventAttendeesTable {
   event_id: string;
   name: string;
   normalized_name: string;
+  go: ColumnType<boolean, boolean | undefined, boolean>;
   created_at: ColumnType<Date, Date | undefined, never>;
 }
 
@@ -115,11 +116,19 @@ export async function migrateToLatest(db: Kysely<Database>): Promise<void> {
     )
     .addColumn('name', 'text', (col: ColumnDefinitionBuilder) => col.notNull())
     .addColumn('normalized_name', 'text', (col: ColumnDefinitionBuilder) => col.notNull())
+    .addColumn('go', 'boolean', (col: ColumnDefinitionBuilder) =>
+      col.notNull().defaultTo(sql`true`),
+    )
     .addColumn('created_at', 'timestamptz', (col: ColumnDefinitionBuilder) =>
       col.notNull().defaultTo(sql`now()`),
     )
     .addPrimaryKeyConstraint('event_attendees_pk', ['event_id', 'normalized_name'])
     .execute();
+
+  await sql`alter table event_attendees add column if not exists go boolean`.execute(db);
+  await sql`update event_attendees set go = true where go is null`.execute(db);
+  await sql`alter table event_attendees alter column go set default true`.execute(db);
+  await sql`alter table event_attendees alter column go set not null`.execute(db);
 
   await db.schema
     .createTable('event_payments')
